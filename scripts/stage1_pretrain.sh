@@ -1,11 +1,11 @@
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
 deepspeed --master_port 11451 llava/train/train_mem.py \
     --deepspeed ./scripts/zero2.json \
-    --model_name_or_path  /share-cv/bob/mtr/cmcc_mtr_new/language_model \
+    --model_name_or_path  /PATH/cmcc_mtr_new/language_model \
     --version plain \
-    --data_path /share-cv/bob/mtr/GRIT_adaption/merge/merged.json \
+    --data_path /PATH/GRIT_adaption/merge/merged.json \
     --image_folder / \
-    --vision_tower /share-cv/bob/mtr/CMCC/LaTokenizer/LaVIT-7B-v2 \
+    --vision_tower /PATH/CMCC/LaTokenizer/LaVIT-7B-v2 \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
@@ -13,7 +13,7 @@ deepspeed --master_port 11451 llava/train/train_mem.py \
     --image_aspect_ratio pad \
     --group_by_modality_length True \
     --bf16 True \
-    --output_dir /share-cv/bob/mtr/checkpoints/llava-mirage-0624-grit-2e5-bs256 \
+    --output_dir /PATH/checkpoints/llava-mirage-0624-grit-2e5-bs256 \
     --num_train_epochs 1 \
     --per_device_train_batch_size 32 \
     --per_device_eval_batch_size 4 \

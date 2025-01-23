@@ -21,9 +21,9 @@ import math
 from .multimodal_encoder.builder import build_vision_tower
 from .multimodal_projector.builder import build_vision_projector
 
-from llava.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, REF_S, REF_E
+from ClawMachine.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, REF_S, REF_E
 
-from llava.mm_utils import get_anyres_image_grid_shape
+from ClawMachine.mm_utils import get_anyres_image_grid_shape
 import copy
 
 class LlavaMetaModel:
@@ -219,14 +219,11 @@ class LlavaMetaForCausalLM(ABC):
         N = l * l
         # Parse the coordinate string
         new_map_list = []
-        # print(coor_list)
         # coor_list shall looks like [[[ref1],[ref2]],[[ref3]]]...
         for coors in coor_list: # for each conv
             # print(len(coors))
             new_map = set()
             for coor in coors: # for each entity(may have multiple locs)
-                # print(coor)
-                # breakpoint()
                 [x1, y1, x2, y2] = coor
 
                 # Convert coordinates to row and column indices
@@ -250,7 +247,6 @@ class LlavaMetaForCausalLM(ABC):
                 new_map.update(new_map_single) # use set to avoid repetitive v tokens.
                 # print(cent)
             new_map_list.append(list(new_map))
-        # breakpoint()
         return new_map_list
 
     def generate_substituted_list(self, ref_list, map_list, image_feat):
@@ -350,30 +346,17 @@ class LlavaMetaForCausalLM(ABC):
             image_features_noproj,feat_map = self.encode_images(images)
             image_features = self.project_feat(image_features_noproj)
         ### feat_map looks like[bs * [2,3,4,7,...252]]
-        ###### vivre debugging
         image_ids = self.tokenize_visual_features(image_features_noproj)
-        # breakpoint()
-        # image_features_vq = self.get_model().embed_tokens(image_ids)  ####0424
-        # import transformers
-        # temp_tokenizer = transformers.AutoTokenizer.from_pretrained(
-        # "/share-cv/bob/mtr/pretrained/lang-only-mirage-7b-continuv-merged",
-        # cache_dir=None,
-        # model_max_length=2048,
-        # padding_side="right",
-        # use_fast=False)
-        # print(temp_tokenizer.decode([x for x in input_ids[0] if (x>0 and x<32000)]))
 
         if ref_trig:
             # ref_seqs = [self.ref_sect(feat_map[i],ref_list[i][0]) for i in range(len(feat_map))]
             ref_seqs = [self.ref_sect(feat_map[i],ref_list[i]) for i in range(len(feat_map))]
             ## sample: [[[97, 66, 99, 100], [], []], [[81, 50, 83, 82], [], []]]
-            ## before the following step, shall we quan the image_features (with image_ids)? FIXME
             # ref_features_list = [self.generate_substituted_list(ref_seqs[i],feat_map[i],image_features[i]) for i in range(len(feat_map))]
             ref_ids_list = [self.generate_substituted_list(ref_seqs[i],feat_map[i],image_ids[i]) for i in range(len(feat_map))]
 
             #TODO: prune these tokens
-        ### I hope you work well
-        # breakpoint()
+
 
         # TODO: image start / end is not implemented here to support pretraining.
         if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):
@@ -428,11 +411,6 @@ class LlavaMetaForCausalLM(ABC):
             idx_ref = [torch.where(input_ids[i]==31007) for i in range(len(input_ids))] #### lavit use almost the same code as vicuna
             idx_ref_patch = [torch.where(input_ids[i]==31005) for i in range(len(input_ids))] ####
 
-        # print(f'ref_trig',ref_trig)
-        # print(input_ids)
-        # torch.save(input_ids,'/home/MaTianren/Workspace/LLaVA-15/saved_tensors/input_ids_crash')
-        # print('succeed')
-
         for batch_idx, cur_input_ids in enumerate(input_ids):
 
 
@@ -448,7 +426,7 @@ class LlavaMetaForCausalLM(ABC):
             num_images = (cur_input_ids == IMAGE_TOKEN_INDEX).sum()
             if num_images >1:
                 print('why?')
-                breakpoint()
+                raise ValueError
             # print(num_images)
             if num_images == 0:
                 print('input ids not implemented!')
@@ -524,10 +502,7 @@ class LlavaMetaForCausalLM(ABC):
 
                 num_ref = len(cur_ref_ids_list)
                 for i in range(num_ref+1):
-                    # cur_new_embeds_fin.append(cur_input_embeds_noref[i])
-                    # if len(cur_input_ids_noref)<i-1:
-                    #     print(cur_input_ids_noref)
-                    #     breakpoint()
+
                     cur_new_ids_fin.append(cur_input_ids_noref[i])
                     cur_new_labels_fin.append(cur_labels_noref[i])
                     if i < num_ref:
@@ -561,13 +536,6 @@ class LlavaMetaForCausalLM(ABC):
                             cur_new_ids_fin.append(cur_ref_ids)
                             cur_new_labels_fin.append(cur_ref_ids_label) ####mask the ref in questions
 
-                            # cur_new_labels_fin.append(cur_ref_ids)
-                        # else:
-                        #     #### may encounter null ref features due to current dynamic selection
-                        #     print('no ref features can be attached')
-
-                # breakpoint()
-                # cur_new_input_embeds = torch.cat(cur_new_embeds_fin)
                 cur_new_input_ids = torch.cat(cur_new_ids_fin)
                 cur_new_labels = torch.cat(cur_new_labels_fin)
             # else:
@@ -599,7 +567,6 @@ class LlavaMetaForCausalLM(ABC):
         new_labels_padded = torch.full((batch_size, max_len), IGNORE_INDEX, dtype=new_labels[0].dtype, device=new_labels[0].device)
         attention_mask = torch.zeros((batch_size, max_len), dtype=attention_mask.dtype, device=attention_mask.device)
         position_ids = torch.zeros((batch_size, max_len), dtype=position_ids.dtype, device=position_ids.device)
-        # breakpoint()
 
         ### so be it.
         for i, (cur_new_id, cur_new_labels) in enumerate(zip(new_input_ids, new_labels)):
@@ -623,7 +590,7 @@ class LlavaMetaForCausalLM(ABC):
                     new_labels_padded[i, :cur_len] = cur_new_labels
                     attention_mask[i, :cur_len] = True
                     position_ids[i, :cur_len] = torch.arange(0, cur_len, dtype=position_ids.dtype, device=position_ids.device)
-                # breakpoint()
+
                 embeds_to_append = self.get_model().embed_tokens(id_to_append)
                 
                 if IMAGE_NO_VQ == True: ### current support only one image
@@ -640,7 +607,7 @@ class LlavaMetaForCausalLM(ABC):
 
         new_input_embeds = torch.stack(new_input_embeds_padded, dim=0)
         # new_input_ids = torch.stack(new_input_ids_padded, dim=0)
-        # breakpoint()
+
         if _labels is None:
             new_labels = None
         else:
@@ -662,8 +629,6 @@ class LlavaMetaForCausalLM(ABC):
         # each attn_mask and labels will be padded to fit the longest.
         # pos_id and past_k_v are none.
         
-        # print(new_labels)
-        # breakpoint()
 
         return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels
 
